@@ -1,4 +1,5 @@
 import BtnRotatingBg from '@/components/Btnrotatingbg';
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -10,9 +11,13 @@ export default function Home() {
         </div>
         <p className='font-serif text-xl '>A crowdfunding platform for creators. Get funded today!</p>
         <div className='flex gap-4'>
-          <BtnRotatingBg>
-            Start Now
-          </BtnRotatingBg>
+
+          <Link href="/login">
+            <BtnRotatingBg>
+              Start Now
+            </BtnRotatingBg>
+          </Link>
+
           <BtnRotatingBg>
             Read Here
           </BtnRotatingBg>
