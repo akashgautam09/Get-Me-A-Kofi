@@ -4,7 +4,7 @@ import Link from 'next/link';
 export default function Home() {
   return (
     <>
-      <div className='flex h-screen w-full flex-col items-center justify-center gap-4 text-center text-white' >
+      <div className='flex h-[calc(100vh-4rem)] w-full flex-col items-center justify-center gap-4 text-center text-white' >
         <div className='inline-flex h-7 items-center justify-center animate-background-shine bg-[linear-gradient(110deg,#ff0080,#ff8c00,#40e0d0,#8a2be2,#ff0080)] bg-[length:250%_100%] bg-clip-text text-4xl text-transparent font-serif font-bold'>
           Get Me A Kofi !
           <span className='pb-4'><img className="invertImg" src="/tea.gif" width={71} alt="" /></span>
@@ -23,7 +23,7 @@ export default function Home() {
           </BtnRotatingBg>
         </div>
       </div>
-      <div className="bg-white/40 h-1 opacity-10">
+      <div className="bg-white h-1 opacity-10">
       </div>
 
       <div className="text-white container mx-auto pb-32 pt-14 px-10">
@@ -46,6 +46,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
     </>
   );
 }

@@ -13,7 +13,7 @@ module.exports = {
           "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
       },
       animation: {
-        "background-shine": "background-shine 7s linear infinite",
+        "background-shine": "background-shine 100s linear infinite",
       },
       keyframes: {
         "background-shine": {
