@@ -58,7 +58,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-4">
       <div className="max-w-2xl mx-auto">
 
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">

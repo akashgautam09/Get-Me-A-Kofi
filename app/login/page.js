@@ -1,17 +1,20 @@
 "use client"
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from 'next/navigation'
 
 const Login = () => {
   const { data: session } = useSession()
     const router = useRouter()
-    if (session) {
-        router.push('/dashboard')
-    }
+    
+    useEffect(() => {
+        if (session) {
+            router.replace('/dashboard')
+        }
+    }, [session, router])
 
   return (
-        <div className="flex flex-col gap-2 min-h-screen p-10 justify-center items-center">
+        <div className="flex flex-col gap-2 h-[calc(100vh-5rem)] p-10 justify-center items-center">
 
 
     <button
