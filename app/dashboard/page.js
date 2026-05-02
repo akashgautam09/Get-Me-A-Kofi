@@ -1,8 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 
 export default function Dashboard() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -18,6 +23,52 @@ export default function Dashboard() {
   const [profileUrl, setProfileUrl] = useState('')
   const [coverUrl, setCoverUrl] = useState('')
   const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    }
+  }, [status, router])
+
+  // Load user data on mount
+  useEffect(() => {
+    if (session?.user?.email) {
+      loadUserData()
+    }
+  }, [session])
+
+  const loadUserData = async () => {
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'GET',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setFormData({
+          name: data.user?.name || '',
+          email: data.user?.email || session.user.email,
+          username: data.user?.username || '',
+          razorpayId: data.user?.razorpayId || '',
+          razorpaySecret: data.user?.razorpaySecret || '',
+        })
+        if (data.user?.profileUrl) {
+          setProfilePic(data.user.profileUrl)
+          setProfileUrl(data.user.profileUrl)
+          setProfileMethod('url')
+        }
+        if (data.user?.coverUrl) {
+          setCoverPic(data.user.coverUrl)
+          setCoverUrl(data.user.coverUrl)
+          setCoverMethod('url')
+        }
+      }
+    } catch (error) {
+      console.log('Could not load user data')
+    }
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -25,6 +76,33 @@ export default function Dashboard() {
       ...prev,
       [name]: value
     }))
+  }
+
+  const uploadToCloudinary = async (file, folder) => {
+    try {
+      setUploading(true)
+      const formDataToSend = new FormData()
+      formDataToSend.append('file', file)
+      formDataToSend.append('folder', folder)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formDataToSend,
+      })
+
+      if (!response.ok) {
+        throw new Error('Upload failed')
+      }
+
+      const data = await response.json()
+      return data.url
+    } catch (error) {
+      setMessage('Error uploading image: ' + error.message)
+      setTimeout(() => setMessage(''), 3000)
+      return null
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleProfilePicChange = (e) => {
@@ -53,8 +131,97 @@ export default function Dashboard() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setMessage('Profile updated successfully!')
-    setTimeout(() => setMessage(''), 3000)
+    
+    if (!formData.name || !formData.username) {
+      setMessage('Name and username are required')
+      setTimeout(() => setMessage(''), 3000)
+      return
+    }
+
+    setLoading(true)
+    setMessage('')
+
+    try {
+      let finalProfileUrl = profileUrl
+      let finalCoverUrl = coverUrl
+
+      // Upload profile picture if selected from file
+      if (profileMethod === 'upload' && profilePic && !profileUrl) {
+        // Convert data URL to file for upload
+        const file = await fetch(profilePic)
+          .then(res => res.blob())
+          .then(blob => new File([blob], 'profile.jpg', { type: 'image/jpeg' }))
+        
+        const uploadedUrl = await uploadToCloudinary(file, 'profile')
+        if (!uploadedUrl) {
+          setLoading(false)
+          return
+        }
+        finalProfileUrl = uploadedUrl
+      } else if (profileMethod === 'url') {
+        finalProfileUrl = profileUrl
+      }
+
+      // Upload cover picture if selected from file
+      if (coverMethod === 'upload' && coverPic && !coverUrl) {
+        const file = await fetch(coverPic)
+          .then(res => res.blob())
+          .then(blob => new File([blob], 'cover.jpg', { type: 'image/jpeg' }))
+        
+        const uploadedUrl = await uploadToCloudinary(file, 'cover')
+        if (!uploadedUrl) {
+          setLoading(false)
+          return
+        }
+        finalCoverUrl = uploadedUrl
+      } else if (coverMethod === 'url') {
+        finalCoverUrl = coverUrl
+      }
+
+      // Save to database
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: session.user.email,
+          username: formData.username,
+          razorpayId: formData.razorpayId,
+          razorpaySecret: formData.razorpaySecret,
+          profileUrl: finalProfileUrl,
+          coverUrl: finalCoverUrl,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save profile')
+      }
+
+      setMessage('Profile updated successfully!')
+      setTimeout(() => setMessage(''), 3000)
+    } catch (error) {
+      setMessage('Error: ' + error.message)
+      setTimeout(() => setMessage(''), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated
+  if (status === 'unauthenticated') {
+    return null
   }
 
   return (
@@ -98,6 +265,7 @@ export default function Dashboard() {
                   accept="image/*"
                   onChange={handleCoverPicChange}
                   className="hidden"
+                  disabled={uploading}
                 />
               </label>
             ) : (
@@ -109,7 +277,7 @@ export default function Dashboard() {
                   setCoverPic(e.target.value)
                 }}
                 placeholder="Paste image URL"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             )}
           </div>
@@ -148,6 +316,7 @@ export default function Dashboard() {
                     accept="image/*"
                     onChange={handleProfilePicChange}
                     className="hidden"
+                    disabled={uploading}
                   />
                 </label>
               </div>
@@ -160,7 +329,7 @@ export default function Dashboard() {
                   setProfilePic(e.target.value)
                 }}
                 placeholder="Paste image URL"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             )}
           </div>
@@ -175,18 +344,16 @@ export default function Dashboard() {
                 value={formData.name}
                 onChange={handleInputChange}
                 placeholder="Your name"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input
                 type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="your@email.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={session?.user?.email || ''}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-gray-50 text-black"
               />
             </div>
             <div className="md:col-span-2">
@@ -197,7 +364,7 @@ export default function Dashboard() {
                 value={formData.username}
                 onChange={handleInputChange}
                 placeholder="your_username"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -212,7 +379,7 @@ export default function Dashboard() {
                 value={formData.razorpayId}
                 onChange={handleInputChange}
                 placeholder="Your Razorpay ID"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -223,14 +390,18 @@ export default function Dashboard() {
                 value={formData.razorpaySecret}
                 onChange={handleInputChange}
                 placeholder="Your Razorpay Secret"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           {/* Message */}
           {message && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded text-sm">
+            <div className={`px-3 py-2 rounded text-sm border ${
+              message.includes('Error') || message.includes('error')
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-green-50 border-green-200 text-green-700'
+            }`}>
               {message}
             </div>
           )}
@@ -238,9 +409,10 @@ export default function Dashboard() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded text-sm transition"
+            disabled={loading || uploading}
+            className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded text-sm transition"
           >
-            Save Profile
+            {loading || uploading ? 'Saving...' : 'Save Profile'}
           </button>
         </form>
       </div>

@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { encrypt, decrypt } from "@/utils/encryption";
+
 const { Schema, model } = mongoose;
 
 const userSchema = new mongoose.Schema({
@@ -20,6 +22,18 @@ const userSchema = new mongoose.Schema({
   },
   profileUrl:{
     type: String,
+  },
+  razorpayId:{
+    type: String,
+    // Store encrypted in database
+    set: (value) => value ? encrypt(value) : value,
+    get: (value) => value ? decrypt(value) : value,
+  },
+  razorpaySecret:{
+    type: String,
+    // Store encrypted in database
+    set: (value) => value ? encrypt(value) : value,
+    get: (value) => value ? decrypt(value) : value,
   },
   createdAt: {
     type: Date,
